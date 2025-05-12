@@ -130,6 +130,7 @@ sm_ctrl_out_data_t on_control_mac_sm_ag(sm_agent_t const* sm_agent, sm_ctrl_req_
   mac_ctrl_req_data_t mac_ctrl = {0};
   mac_ctrl.hdr.dummy = hdr.dummy;
   mac_ctrl.msg.action = msg.action;
+  mac_ctrl.msg.log_interval_ms = msg.log_interval_ms;
 
   sm->base.io.write_ctrl(&mac_ctrl);
   sm_ctrl_out_data_t ret = {0};
