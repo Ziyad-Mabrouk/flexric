@@ -180,6 +180,7 @@ bool eq_mac_ctrl_hdr(mac_ctrl_hdr_t* m0, mac_ctrl_hdr_t* m1);
 
 typedef struct {
   uint32_t action;
+  uint32_t log_interval_ms;
 } mac_ctrl_msg_t;
 
 void free_mac_ctrl_msg( mac_ctrl_msg_t* src); 
