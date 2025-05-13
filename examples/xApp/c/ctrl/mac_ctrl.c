@@ -31,7 +31,19 @@
 
 int main(int argc, char *argv[])
 {
-  fr_args_t args = init_fr_args(argc, argv);
+  if (argc < 2) {
+    fprintf(stderr, "Usage: %s <log_interval_ms>\n", argv[0]);
+    return EXIT_FAILURE;
+  }
+
+  // Parse the logging interval from the first argument
+  uint32_t log_interval_ms = (uint32_t)atoi(argv[1]);
+  if (log_interval_ms == 0) {
+    fprintf(stderr, "Invalid log_interval_ms: must be > 0\n");
+    return EXIT_FAILURE;
+  }
+
+  fr_args_t args = init_fr_args(argc - 1, argv + 1);
 
   //Init the xApp
   init_xapp_api(&args);
@@ -51,9 +63,13 @@ int main(int argc, char *argv[])
       printf("Registered node %d ran func id = %d \n ", i, n->rf[j].id);
 
     if(n->id.type == ngran_gNB || n->id.type == ngran_gNB_DU){
-      mac_ctrl_req_data_t wr = {.hdr.dummy = 1, .msg.action = 42 };
+      mac_ctrl_req_data_t wr = {.hdr.dummy = 1, .msg.log_interval_ms = log_interval_ms, .msg.action = 42 };
       sm_ans_xapp_t const a = control_sm_xapp_api(&nodes.n[i].id, 142, &wr);
-      assert(a.success == true);
+      if (!a.success) {
+        fprintf(stderr, "Control message failed for node %d\n", i);
+      } else {
+        printf("Sent log_interval_ms = %u to node %d\n", log_interval_ms, i);
+      }
      } else {
        printf("Cannot send MAC ctrl to if the E2 Node is not a GNB or DU\n");
     }
