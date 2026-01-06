@@ -56,11 +56,6 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release")
 endif()
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-  add_compile_options("-march=native;-flto")
-  add_compile_options("-D_FORTIFY_SOURCE=3")
-endif()
-
 #######
 ## SANITIZER
 #######
@@ -72,8 +67,8 @@ set_property(CACHE SANITIZER PROPERTY STRINGS "NONE" "ADDRESS" "THREAD")
 message(STATUS "Selected SANITIZER TYPE: ${SANITIZER}")
 
 if(${SANITIZER} STREQUAL "ADDRESS")
-   add_compile_options("-fno-omit-frame-pointer;-fsanitize=address")
-   add_link_options("-fsanitize=address")
+  add_compile_options("-fno-omit-frame-pointer;-fsanitize=address")
+  add_link_options("-fsanitize=address")
 elseif(${SANITIZER} STREQUAL "THREAD")
   add_compile_options("-fsanitize=thread;-g;")
   add_link_options("-fsanitize=thread;")
@@ -247,6 +242,9 @@ add_definitions(-DSERVICE_MODEL_DIR_PATH="${SM_DIR_PATH}/")
 set(SM_ENCODING_KPM "ASN" CACHE STRING "The KPM SM encoding to use")
 set_property(CACHE SM_ENCODING_KPM PROPERTY STRINGS "PLAIN" "ASN" "FLATBUFFERS")
 message(STATUS "Selected KPM SM_ENCODING: ${SM_ENCODING_KPM}")
+# Copy KPM measurement list (defined by 3GPP TS 28.552) into build directory so the xApp can load it from there
+configure_file(${CMAKE_SOURCE_DIR}/src/sm/kpm_sm/28_552_kpm_meas.txt ${CMAKE_CURRENT_BINARY_DIR}/28_552_kpm_meas.txt COPYONLY)
+set(KPM_MEAS_LIST "${CMAKE_CURRENT_BINARY_DIR}/28_552_kpm_meas.txt")
 
 set(KPM_VERSION "KPM_V2_03" CACHE STRING "The KPM SM version to use")
 set_property(CACHE SM_ENCODING_KPM PROPERTY STRINGS  "KPM_V2_01" "KPM_V2_03" "KPM_V3_00")

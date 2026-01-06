@@ -157,7 +157,7 @@ However, please be aware that not all of them are supported with OAI RAN, and wr
 Optionally run Wireshark and capture E2AP traffic.
 
 * Start the nearRT-RIC
-Please make sure to set the desired nearRT-RIC IP address `NEAR_RIC_IP` in `/usr/local/etc/flexric/flexric.conf`.
+Please make sure to set the desired nearRT-RIC IP address `NEAR_RIC_IP` in `/usr/local/etc/flexric/flexric.conf`, or feel free to overwrite it with option `-a`.
 ```bash
 ./build/examples/ric/nearRT-RIC
 ```
@@ -188,10 +188,18 @@ Within E2 Setup Request message, E2 node sends the list of supported service mod
 
 As this section is dedicated for testing with E2 agent emulators, **all RIC INDICATION messages contain random data, as there is no UE connected**.
 
+`XAPP_DURATION` environment variable overwrites the default xApp duration of 20s. If the negative value used, the xApp duration is considered to be infinite.
+
+At runtime, the xApp loads its default configuration from `/usr/local/etc/flexric/flexric.conf`.
+To override specific default values, you can use the following command-line options:
+* `-a`: overrides the `NEAR_RIC_IP`
+* `-d`: overrides the `DB_DIR`
+* `-n`: overrides the `DB_NAME`
+
 * Start different C xApps
   * start the E2SM-KPM monitor xApp - fetch UE-level measurements based on S-NSSAI `(1, 0xffffff)` condition; `O-RAN.WG3.E2SM-KPM-version` section 7.4.5 - REPORT Service Style 4 ("Common condition-based, UE-level")
   ```bash
-  ./build/examples/xApp/c/monitor/xapp_kpm_moni # not supported by emu_agent_enb
+  XAPP_DURATION=20 ./build/examples/xApp/c/monitor/xapp_kpm_moni -d /db_dir/ -n xapp_db # not supported by emu_agent_enb; values for options `-d` and `-n` represent an example for shared volume with Grafana
   ```
 
   * start the E2SM-RC monitor xApp - based on `ORAN.WG3.E2SM-RC-v01.03` specification, aperiodic subscriptions to:
@@ -201,17 +209,17 @@ As this section is dedicated for testing with E2 agent emulators, **all RIC INDI
     * REPORT Service Style 4 ("UE Information") - section 7.4.5
       * `UE RRC State Change` (`RRC connected`, `RRC inactive`, `RRC idle`)
   ```bash
-  ./build/examples/xApp/c/monitor/xapp_rc_moni # not supported by eNB as per spec
+  XAPP_DURATION=20 ./build/examples/xApp/c/monitor/xapp_rc_moni # not supported by eNB as per spec
   ```
 
   * start the E2SM-RC control xApp - RAN control function "QoS flow mapping configuration" (e.g. creating a new DRB); `ORAN.WG3.E2SM-RC-v01.03` section 7.6.2 - CONTROL Service Style 1 ("Radio Bearer Control")
   ```bash
-  ./build/examples/xApp/c/kpm_rc/xapp_kpm_rc # not supported by emu_agent_enb
+  XAPP_DURATION=20 ./build/examples/xApp/c/kpm_rc/xapp_kpm_rc # not supported by emu_agent_enb
   ```
 
   * start the (MAC + RLC + PDCP + GTP) monitor xApp
   ```bash
-  ./build/examples/xApp/c/monitor/xapp_gtp_mac_rlc_pdcp_moni
+  XAPP_DURATION=20 ./build/examples/xApp/c/monitor/xapp_gtp_mac_rlc_pdcp_moni
   ```
 
   * start the MAC control xApp
@@ -236,7 +244,7 @@ As this section is dedicated for testing with E2 agent emulators, **all RIC INDI
   * if `XAPP_MULTILANGUAGE` option is enabled, start the python xApps:
   ```bash
   # (MAC + RLC + PDCP + GTP) monitor xApp
-  python3 build/examples/xApp/python3/xapp_mac_rlc_pdcp_gtp_moni.py
+  XAPP_DURATION=20 python3 build/examples/xApp/python3/xapp_mac_rlc_pdcp_gtp_moni.py
   # slicing xApp
   python3 build/examples/xApp/python3/xapp_slice_moni_ctrl.py
   cd build/examples/xApp/python3 && ./watch_slice_stats # to observe real-time stats for network slices
@@ -248,8 +256,24 @@ At this point, FlexRIC is working correctly in your computer and you have alread
 
 The latency that you observe in your monitor xApp is the latency from the E2 Agent to the nearRT-RIC and xApp. In modern computers the latency should be less than 200 microseconds or 50x faster than the O-RAN specified minimum nearRT-RIC latency i.e., (10 ms - 1 sec) range.
 Therefore, FlexRIC is well suited for use cases with ultra low-latency requirements.
-Additionally, all the data received in the xApp is also written to `/tmp/xapp_db` in case that offline data processing is wanted (e.g., Machine Learning/Artificial Intelligence applications). You browse the data using e.g., sqlitebrowser. 
-Please, check the example folder for other working xApp use cases.
+
+Additionally, all the data received in the xApp is also written to `DB_DIR/DB_NAME` or `/tmp/xapp_db_<random-numbers>` (if `DB_DIR=/tmp/`) in case that offline data processing is wanted (e.g., Machine Learning/Artificial Intelligence applications). You browse the data using e.g., sqlitebrowser.
+
+### 4.1.1 Grafana
+[The official Grafana installation instructions](https://grafana.com/docs/grafana/latest/setup-grafana/installation/).
+
+At the moment, we support real time monitoring for E2SM-KPM Service Model in Grafana. After the Grafana installation, please follow the additional steps: 
+```bash
+sudo grafana-cli plugins install frser-sqlite-datasource
+sudo vi /etc/grafana/grafana.ini # set the min_refresh_interval to 1s
+sudo systemctl start grafana-server
+DB_DIR=/db_dir/ && sudo mkdir $DB_DIR && sudo chown -R "$USER":"$USER" $DB_DIR
+```
+
+Import the Grafana configuration:
+- Open Grafana in your web browser `http://localhost:3000`
+- In `Connections > Data Sources`, click `Add new data source` and choose `SQLite`; set the path to `DB_DIR/DB_NAME`; save and test the connection
+- In `Dashboards > New > Import` upload the `grafana/dashboards/grafana-dashboard.json` file; select the SQLite data source you created
 
 ## 4.2 (opt.) Docker testbed
 FlexRIC is supported on the following distributions: Ubuntu, Red Hat, and Rocky Linux. You can build the images as:
@@ -267,6 +291,9 @@ In order to reproduce the [bare-metal testbed](#41-bare-metal-testbed) in docker
 cd docker
 docker compose up -d
 ```
+
+### 4.2.1 Grafana
+The Grafana application is implemented in the docker container. In order to visualize real time E2SM-KPM data, open Grafana in your web browser `http://localhost:3000`.
 
 # 5. Integration with RAN and example of deployment
 
@@ -291,7 +318,15 @@ Recognizing the critical role of the ns-O-RAN simulator, the Orange Innovation E
 
 ![alt text](fig/6.png)
 
-The simulator has been updated and enhanced to support E2AP v1.01, E2SM-KPM v3.00, and E2SM-RC v1.03. This framework has been tested with the `/build/examples/xApp/c/kpm_rc/xapp_kpm_rc` xApp with different scenarios.
+The simulator has been updated and enhanced to support E2AP v1.01, KPM v3.00, and RC v1.03. 
+This framework has been tested with the **kpm-rc** and **Eenergy Saving under Cell utilization** xApps.
+
+#### 5.4.1 Zero-touch operation: Energy Saving (ES) under Cell utilization xApp Overview
+
+The Orange Innovation Egypt team has developed an Energy Saving (ES) under cell utilization xApp. This xApp continuously monitors the Physical Resource Block (PRB) utilization of each cell to make informed decisions about network resource management while ensuring Quality of Service (QoS) for the scenario.
+
+* [Testbed tutorial](https://github.com/Orange-OpenSource/ns-O-RAN-flexric/?tab=readme-ov-file#43-energy-saving-under-cell-utilization-es-xapp-operation)
+* [Testbed demo](https://www.youtube.com/watch?v=p5MOp3b8Nm8) - the demo walks you through the process from monitoring PRB usage to initiating handovers and deactivating underutilized cells, and ensuring QoS observability throughout the scenario.
 
 ## 5.5 (opt.) Synchronize clock
 Before running the various components (RAN/nearRT-RIC/xApps), you probably want to align the machines' clock. For this aim, you can use `ptp4l` in all the machines
@@ -314,12 +349,11 @@ sudo phc2sys -m -s InterfaceName -w
 
 # 6. Integration with other nearRT-RICs 
 
-## 6.1 O-RAN OSC nearRT-RIC
-FlexRIC's E2 Agent (and OAI RAN that is embedded on it) has also been successfully tested using O-RAN's OSC nearRT-RIC H Release as shown at https://openairinterface.org/news/openairinterface-will-showcase-3-demos-at-the-o-ran-f2f-meeting-in-phoenix/ and https://openairinterface.org/joint-osc-oai-workshop-end-to-end-open-source-reference-designs-for-o-ran/ 
+## 6.1 O-RAN SC nearRT-RIC
+We showcased the successful integration between OAI E2 agent and O-RAN SC nearRT-RIC in [the OAI E2AP tutorial](https://gitlab.eurecom.fr/oai/openairinterface5g/-/blob/develop/openair2/E2AP/README.md?ref_type=heads#5-o-ran-sc-nearrt-ric-interoperability).
 
-Follow OSC nearRT-RIC installation guide. The xApp can be found at https://github.com/mirazabal/kpm_rc-xapp. Please, note that we do not give support for the OSC nearRT-RIC.  
-
-Recorded presentation at Phoenix, October 2023 (4th minute): https://zoom.us/rec/play/N5mnAQUcEVRf8HN6qLYa4k7kjNq3bK4hQiYqHGv9KUoLfcR6GHiE-GvnmAudT6xccmZSbkxxYHRwTaxk.Zi7d8Sl1kQ6Sk1SH?canPlayFromShare=true&from=share_recording_detail&continueMode=true&componentName=rec-play&originRequestUrl=https%3A%2F%2Fzoom.us%2Frec%2Fshare%2FwiYXulPlAqIIDY_vLPQSGqYIj-e5Ef_UCxveMjrDNGgXLLvEcDF4v1cmVBe8imb4.WPi-DA_dfPDBQ0FH
+Note that the OSC nearRT-RIC can also be tested with FlexRIC E2 agent emulators (`build/examples/emulator/agent/`).
+Before proceeding with integration, please set the `e2ap_server_port` to 36422 (the default is 36421), as the E2AP port for OSC nearRT-RIC is 36422.
 
 # 7. Support/further resources
 * Mailing list: if you need help or have some questions, you can subscribe to the mailing list `techs@mosaic-5g.io` that you can find at
